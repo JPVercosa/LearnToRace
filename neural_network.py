@@ -168,6 +168,30 @@ class MLP(nn.Module):
             state_dict[key] = other_state_dict[key]
         self.load_state_dict(state_dict)
 
+    def save(self, filepath):
+        """Save model and optimizer state to a file.
+        
+           EXAMPLE
+               >>> mlp = MLP([3, 64, 64, 1])
+               >>> mlp.save('model.pth')
+        """
+        torch.save({
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+        }, filepath)
+    
+    def load(self, filepath):
+        """Load model and optimizer state from a file.
+        
+           EXAMPLE
+               >>> mlp = MLP([3, 64, 64, 1])
+               >>> mlp.load('model.pth')
+        """
+        checkpoint = torch.load(filepath)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        return self
+
 class CQ(MLP):
     """State-action value network with continuous actions."""
     def __init__(self, state_dims, action_dims, hiddens=[64, 64], lr=1e-3):

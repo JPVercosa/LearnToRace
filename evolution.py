@@ -137,18 +137,44 @@ class EntityDDPG(Entity):
         self.cq = result.cq
         self.mu = result.mu
         self.max_score = result.reward
+
+    def save_file(self, save_name="", folder="saves/reinforcement"):
+        # if dir already contains that name
+        """
+        files = listdir(folder)
+        name_count = 0
+        while save_name + ".json" in files:
+            name_count += 1
+            save_name = "%s(%s)" % (self.name, name_count)"""
+        self.cq.save("saves/reinforcement/" + save_name + "_cq.pth")
+        self.mu.save("saves/reinforcement/" + save_name + "_mu.pth")
+        if not save_name.endswith(".json"):
+            save_name += ".json"
+        save_file = {
+            "settings": self.get_save_parameters(),
+        }
+        with open(folder + "/" + save_name, "w") as json_file:
+            json.dump(save_file, json_file)
+        print("Saved ", save_name)
     
     def load_file(self, path):
         #try:
+        # print(path)
         with open(path) as json_file:
             file_raw = json.load(json_file)
 
         file_parameters = file_raw["settings"]
-        file_weights = file_raw["weights"]
-
-        self.nn = NeuralNetworkDDPG(file_parameters["shape"])
-        self.nn.set_weights(file_weights)
         self.set_parameters_from_dict(file_parameters)
+
+        file_name = path.split("/")[-1].split(".")[0]
+        print(file_name)
+        shape = file_parameters["shape"]
+        loaded_cq = CQ(shape[0], shape[-1], shape[1:-1])
+        loaded_mu = Mu(shape[0], shape[-1], shape[1:-1])
+        
+        self.cq = loaded_cq.load(f"saves/reinforcement/{file_name}_cq.pth")
+        self.mu = loaded_mu.load(f"saves/reinforcement/{file_name}_mu.pth")
+        
 
         print(f"Loaded {path}")
 

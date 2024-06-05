@@ -58,6 +58,7 @@ class App:
     def __init__(self, settings):
         ### NAME OF SAVE ###
         self.settings = settings
+        self.mode = "evolutionary"
 
         ### INIT WINDOW ###
         self.window = pyglet.window.Window(fullscreen=False, resizable=True)
@@ -133,13 +134,17 @@ class App:
         # save the nn
         if symbol == key.S:
             self.window.set_fullscreen(False)
-            if self.evolution.best_result.nn:
-                directory = "saves"
+            if self.mode == "evolutionary":
+                check_status = self.evolution.best_result.nn
+            elif self.mode == "reinforcement":
+                check_status = self.evolution.best_result.cq
+            if check_status:
+                # directory = "saves/evolutionary"
                 filename = ask_save_nn_as()
                 if filename:
                     filename = filename.split("/")[-1]  # filename and ext
-                    self.entity.save_file(save_name=filename, folder=directory)
-                    show_message(f"Succesfully saved {filename} to /{directory}")
+                    self.entity.save_file(save_name=filename)
+                    show_message(f"Succesfully saved {filename}")
             else:
                 show_error("No neural network to save yet.")
                 print(f"Cannot save.")
@@ -382,6 +387,7 @@ class App:
 class AppDDPG(App):
     def __init__(self, settings):
         super().__init__(settings)
+        self.mode = "reinforcement"
 
         self.window.set_caption("Reinforcement Learning by João Verçosa")
 

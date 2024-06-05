@@ -408,7 +408,7 @@ class SimulationDDPG(Simulation):
                     #print("Not near center")
 
                 reward = car.reward
-                print(reward)
+
 
                 #print(car.state[0], next_inp[0], reward)
 
