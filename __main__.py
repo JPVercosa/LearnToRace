@@ -33,7 +33,7 @@ SAVE_FILE = False
 while mode != None:
     if mode == "e" or mode == "evolutionary":
         entity = Entity()
-        settings = load_json("config/evolutionary_config.json")
+        settings = load_json("config/evolutionary_settings.json")
 
         if ask_yes_no(title="Start",message="Load saved NN?"):
             SAVE_FILE = ask_load_nn("saves/evolutionary")
@@ -58,7 +58,7 @@ while mode != None:
 
     elif mode == "r" or mode == "reinforcement":
         entity = EntityDDPG()
-        settings = load_json("config/reinforcement_config.json")
+        settings = load_json("config/reinforcement_settings.json")
         
         if ask_yes_no(title="Start",message="Load saved NN?"):
             SAVE_FILE = ask_load_nn("saves/reinforcement")
