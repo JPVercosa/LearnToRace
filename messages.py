@@ -31,6 +31,13 @@ def ask_load_nn(initialdir="saves"):
         filetypes=[("json save file", "*.json")]
     )
 
+def ask_mode(custom_title=None, custom_prompt=None):
+    Tk().withdraw()
+    return simpledialog.askstring(
+        title=custom_title or "Choose mode",
+        prompt=custom_prompt or "It's possible to choose between 'Evolucionary' (E) and 'Reinforcement' (R) modes."
+    )
+
 def show_error(message=""):
     Tk().withdraw()
     messagebox.showerror(title="Error", message=message)

@@ -8,10 +8,10 @@ from os import listdir
 import json
 
 from graphics import Graphics
-from core import Simulation, index_loop
+from core import Simulation, SimulationDDPG, index_loop
 from neural_network import NeuralNetwork
 
-from evolution import Evolution, Entity
+from evolution import Evolution, Entity, EntityDDPG, EvolutionDDPG
 from core import Track
 
 from menu import SettingsMenu
@@ -378,3 +378,90 @@ class App:
     # end
     def exit(self):
         pyglet.app.exit()
+
+class AppDDPG(App):
+    def __init__(self, settings):
+        super().__init__(settings)
+
+        self.window.set_caption("Reinforcement Learning by João Verçosa")
+
+        self.window.event(self.on_key_press)
+        self.window.event(self.on_close)
+        self.window.event(self.on_resize)
+        self.window.event(self.on_draw)
+        self.window.event(self.on_mouse_drag)
+        self.window.event(self.on_mouse_scroll)
+        self.window.event(self.on_mouse_press)
+
+        self.gamma = self.settings["gamma"]
+        self.batch_size = self.settings["batch_size"]
+
+        self.simulation = SimulationDDPG(track=None, 
+                                                 gamma=self.gamma,
+                                                 batch_size=self.batch_size)
+        self.evolution = EvolutionDDPG()
+
+    def new_generation(self):
+        self.graphics.clear_batch()
+
+        results = self.simulation.get_nns_results()
+
+        cq_list, mu_list = self.evolution.get_new_generation_from_results(
+            results,
+            self.settings["population"]
+        )
+
+        self.simulation.generate_cars_from_nns(
+            cq=cq_list,
+            mu=mu_list,
+            parameters=self.entity.get_car_parameters(),
+            images=self.graphics.car_images,
+            batch=self.graphics.car_batch,
+            labels_batch=self.graphics.car_labels_batch
+        )
+        self.entity.set_nn_from_result(self.evolution.find_best_result(results))
+        self.entity.increment_gen_count()
+
+        self.update_labels(self.entity)
+        self.camera_selected_car = self.simulation.cars[0]
+        self.graphics.update_sprites(self.simulation.cars)        
+        
+        # start of simulation
+    def start_simulation(self, entity: EntityDDPG, track: Track=None):
+
+        # entity
+        self.entity = entity
+        self.entity.increment_gen_count()
+        
+
+        # set track or generate random
+        self.simulation.track = track if track is not None else self.tile_manager.generate_track(shape=(5, 3))
+
+        # set labels
+        self.update_labels(self.entity)
+
+        cqs, mus = self.entity.get_nn()
+
+        cqs_list, mus_list = self.evolution.get_new_generation(
+            [cqs], [mus], self.settings["population"])
+
+
+
+        self.simulation.generate_cars_from_nns(
+            cq=cqs_list,
+            mu=mus_list,
+            parameters=self.entity.get_car_parameters(),
+            images=self.graphics.car_images,
+            batch=self.graphics.car_batch,
+            labels_batch=self.graphics.car_labels_batch
+        )
+
+        self.camera_selected_car = self.simulation.get_leader()
+        self.graphics.update_sprites(self.simulation.cars)
+
+        self.on_resize(self.window.width, self.window.height)
+
+        pyglet.clock.schedule_interval(self.update, self.settings["render_timestep"])
+        pyglet.app.run()
+        
+    

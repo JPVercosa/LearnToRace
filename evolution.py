@@ -1,8 +1,8 @@
-from neural_network import NeuralNetwork
+from neural_network import NeuralNetwork, NeuralNetworkDDPG, CQ, Mu
 from core import index_loop
 from os import listdir
 import json
-from objects import Result
+from objects import Result, ResultDDPG
 
 
 class Entity:
@@ -115,12 +115,49 @@ class Entity:
             print(f"Failed to load: {path}")
             return False"""
 
+class EntityDDPG(Entity):
+    def __init__(self):
+        super().__init__()
+
+        self.cq = None
+        self.mu = None
+
+    def get_nn(self):
+        cq = self.cq
+        mu = self.mu
+        return cq, mu
+
+    def get_random_nn(self):
+        cq = CQ(6, 2, self.shape[1:-1])
+        mu = Mu(6, 2, self.shape[1:-1])
+        return cq, mu
+    
+        # set new result and max score
+    def set_nn_from_result(self, result: ResultDDPG):
+        self.cq = result.cq
+        self.mu = result.mu
+        self.max_score = result.reward
+    
+    def load_file(self, path):
+        #try:
+        with open(path) as json_file:
+            file_raw = json.load(json_file)
+
+        file_parameters = file_raw["settings"]
+        file_weights = file_raw["weights"]
+
+        self.nn = NeuralNetworkDDPG(file_parameters["shape"])
+        self.nn.set_weights(file_weights)
+        self.set_parameters_from_dict(file_parameters)
+
+        print(f"Loaded {path}")
+
 """
 Class containing info about NNs and its parameters & generates new generations.
 """
 class Evolution:
     def __init__(self):
-        self.best_result = Result(None, -1, 0)
+        self.best_result = Result(None,  -1, 0)
         self.mutation_rate = 0
 
     def load_generation(self, nn: NeuralNetwork, nn_stg: dict, population: int):
@@ -153,6 +190,56 @@ class Evolution:
             self.max_score = score
             self.best_nn = dist_to_next_cp"""
 
+
+class EvolutionDDPG(Evolution):
+    def __init__(self):
+        self.best_result = ResultDDPG(None, None, -1, -1, 0)
+        self.mutation_rate = 0
+
+    def load_generation(self, cq: CQ, mu: Mu, nn_stg: dict, population: int):
+        return self.get_new_generation([cq], [mu], population)
+
+    def get_new_generation(self, cq: [CQ], mu: [Mu], population: int):
+        shape = cq[0].shape
+        base_CQ = CQ(6, 2, shape[1:-1])
+        base_MU = Mu(6, 2, shape[1:-1])
+        cq_list = []
+        mu_list = []
+        # nn_list = [nns[index_loop(i, len(nns))].reproduce(self.mutation_rate) for i in range(population)]
+        # cq_list = [cq[index_loop(i, len(cq))].copyfrom(base_CQ) for i in range(population)]
+        # mu_list = [mu[index_loop(i, len(mu))].copyfrom(base_MU) for i in range(population)]
+        for i in range(population):
+            base_CQ.copyfrom(cq[index_loop(i, len(cq))])
+            cq_list.append(base_CQ)
+            base_MU.copyfrom(mu[index_loop(i, len(mu))])
+            mu_list.append(base_MU)
+        return cq_list, mu_list
+
+    def get_new_generation_from_results(self, results: [ResultDDPG], population: int, to_add_count=3):
+        best_cqs = []
+        best_mus = []
+        
+        # order by cp_score - if equal than dist_to_next_cp
+        sorted_results = sorted(results, reverse=True)
+
+        # add best X
+        to_add = min(to_add_count, len(sorted_results))
+        for i in range(to_add):
+            best_cqs.append(sorted_results[i].cq)
+            best_mus.append(sorted_results[i].mu)
+
+        return self.get_new_generation(best_cqs, best_mus, population)
+
+    def find_best_result(self, results: [ResultDDPG]):
+        # best cp_score - if equal than better dist_to_next_cp
+        current_best_result = max(results)
+        self.best_result = current_best_result if current_best_result > self.best_result else self.best_result
+        return self.best_result
+
+        """nn, score, dist_to_next_cp = max(results, key=lambda x: (x[1], -x[2]))
+        if (score > self.max_score) or (score == self.max_score and dist_to_next_cp < 1) :
+            self.max_score = score
+            self.best_nn = dist_to_next_cp"""
+        
 class CustomEvolution(Evolution):
     pass
-
