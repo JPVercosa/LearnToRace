@@ -386,7 +386,8 @@ class SimulationDDPG(Simulation):
                 
                 # # print(reward, car.dist_to_next_cp)
                 if inp[-1] < 0:
-                    car.reward -= 0.1
+                    car.reward -= abs(car.reward) * 100
+                    car.active = False
                 # print(inp[-1])
                 if inp[-1] > 0.01:
                     car.reward += 0.1

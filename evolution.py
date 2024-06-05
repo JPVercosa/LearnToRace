@@ -146,6 +146,7 @@ class EntityDDPG(Entity):
         while save_name + ".json" in files:
             name_count += 1
             save_name = "%s(%s)" % (self.name, name_count)"""
+        save_name = save_name.replace(" ", "_").replace(".json", "")
         self.cq.save("saves/reinforcement/" + save_name + "_cq.pth")
         self.mu.save("saves/reinforcement/" + save_name + "_mu.pth")
         if not save_name.endswith(".json"):
