@@ -4,8 +4,10 @@ from pyglet.gl import *
 from pyglet.window import key
 
 from numpy import loadtxt, empty
+import matplotlib as plt
 from os import listdir
 import json
+import time
 
 from graphics import Graphics
 from core import Simulation, SimulationDDPG, index_loop
@@ -59,6 +61,8 @@ class App:
         ### NAME OF SAVE ###
         self.settings = settings
         self.mode = "evolutionary"
+        self.save_every = 50
+        self.start_time = time.time()
 
         ### INIT WINDOW ###
         self.window = pyglet.window.Window(fullscreen=False, resizable=True)
@@ -149,7 +153,27 @@ class App:
                 show_error("No neural network to save yet.")
                 print(f"Cannot save.")
         # TODO: load file
-        if symbol == key.T:
+        if symbol == key.H:
+            if self.mode == "evolutionary":
+                check_status = self.evolution.best_result.nn
+            elif self.mode == "reinforcement":
+                check_status = self.evolution.best_result.cq
+            if check_status:
+                # directory = "saves/evolutionary"
+                filename = ask_save_nn_as("saves/images")
+                if filename:
+                    full_path = filename
+                    filename = filename.split("/")[-1]  # filename and ext
+                    self.entity.save_history(save_name=filename, 
+                                             mode=self.mode, 
+                                             history=self.simulation.reward_history, 
+                                             population=self.settings["population"],
+                                             full_path=full_path)
+                    show_message(f"Succesfully saved {filename}")
+            else:
+                show_error("No neural network to save yet.")
+                print(f"Cannot save.")
+        elif symbol == key.T:
             self.change_track(
                 track=self.tile_manager.generate_track(shape=(5, 3))
             )
@@ -282,6 +306,23 @@ class App:
     def new_generation(self):
         self.graphics.clear_batch()
 
+        for car in self.simulation.cars:
+            if car.active:
+                self.simulation.reward_history.append(car.score)
+
+        if self.entity.gen_count % self.save_every == 0:
+            name = self.entity.name
+            gen = self.entity.gen_count
+            best = max(self.simulation.reward_history)
+            pop = self.settings["population"]
+            secs = int(time.time() - self.start_time)
+            filename = f"{name}-{gen}gen-{best}best-{pop}pop-{secs}secs.png"
+            self.entity.save_history(save_name=filename, 
+                                             mode=self.mode, 
+                                             history=self.simulation.reward_history, 
+                                             population=self.settings["population"],
+                                             full_path=f"saves/images/{filename}")
+
         results = self.simulation.get_nns_results()
         self.simulation.generate_cars_from_nns(
             nns=self.evolution.get_new_generation_from_results(
@@ -410,6 +451,23 @@ class AppDDPG(App):
     def new_generation(self):
         self.graphics.clear_batch()
 
+        for car in self.simulation.cars:
+            if car.active:
+                self.simulation.reward_history.append(car.score)
+
+        if self.entity.gen_count % self.save_every == 0:
+            name = self.entity.name
+            gen = self.entity.gen_count
+            best = max(self.simulation.reward_history)
+            pop = self.settings["population"]
+            secs = int(time.time() - self.start_time)
+            filename = f"{name}-{gen}gen-{best}best-{pop}pop-{secs}secs.png"
+            self.entity.save_history(save_name=filename, 
+                                             mode=self.mode, 
+                                             history=self.simulation.reward_history, 
+                                             population=self.settings["population"],
+                                             full_path=f"saves/images/{filename}")
+            
         results = self.simulation.get_nns_results()
 
         cq_list, mu_list = self.evolution.get_new_generation_from_results(

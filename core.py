@@ -140,6 +140,7 @@ class Simulation:
         self.track = track
 
         self.checkpoint_range = [-3, -2, -1, 0, 1]
+        self.reward_history = []
 
     def generate_cars_from_nns(self, nns, parameters, images, batch, labels_batch=None):
         self.cars = []
@@ -264,6 +265,33 @@ class Simulation:
         else:
             car.dist_to_cp = dist
 
+    def calculate_reward(self, car, inp):  
+        # # print(reward, car.dist_to_next_cp)
+        if inp[-1] < 0:
+            car.reward -= abs(car.reward) * 100
+            car.active = False
+        # print(inp[-1])
+        if inp[-1] > 0.01:
+            car.reward += 0.1
+        elif inp[-1] > 0.1:
+            car.reward += 0.5
+        elif inp[-1] > 0.2:
+            car.reward += 1
+        elif inp[-1] > 0.3:
+            car.reward += 1.5
+        elif inp[-1] > 0.4:
+            car.reward += 2
+        
+        # print(inp)
+        if inp[0] > 0.4 and inp[1] > 0.4 and inp[2] > 0.4 and inp[3] > 0.4 and inp[4] > 0.4 and inp[5] > 0.2:
+            car.reward += 5
+            #print("Near center")
+        if inp[0] < 0.4 or inp[1] < 0.4 or inp[2] < 0.4 or inp[3] < 0.4 or inp[4] < 0.4:
+            car.reward -= 0.5
+            #print("Not near center")
+
+        return car.reward
+
     # behaviour of cars (acceleration, steering)
     # run nn
     def behave(self, dt):
@@ -279,6 +307,11 @@ class Simulation:
                 # move the car!
                 car.move(out[1])  # number between 0 and 1
                 car.turn((out[0]-.5)*2)  # number between -1 and 1
+
+                if car.active == False:
+                    self.reward_history.append(car.score)
+                    # print(car.reward)
+
         # if no car is active :(
         if inactive: return False
         else: return True
@@ -373,52 +406,13 @@ class SimulationDDPG(Simulation):
                 car.turn(action[0])  # number between -1 and 1
                 car.move((action[1] + 1) / 2)  # number between 0 and 1
                 
-                # Get the next state input
-                # next_inp = car.state
-                #print(inp)
-                # Store the experience in the replay buffer
-                # car.reward += dist_between((car.xpos, car.ypos), self.track.cps_arr[index_loop(
-                #     car.score + self.track.spawn_index + 1,
-                #     len(self.track.cps_arr))])
+                reward = self.calculate_reward(car, inp)              
 
-                # reward = car.reward / 10**3 - 10**3*dt  # Assuming car.score is the reward
-                
-                
-                # # print(reward, car.dist_to_next_cp)
-                if inp[-1] < 0:
-                    car.reward -= abs(car.reward) * 100
-                    car.active = False
-                # print(inp[-1])
-                if inp[-1] > 0.01:
-                    car.reward += 0.1
-                elif inp[-1] > 0.1:
-                    car.reward += 0.5
-                elif inp[-1] > 0.2:
-                    car.reward += 1
-                elif inp[-1] > 0.3:
-                    car.reward += 1.5
-                elif inp[-1] > 0.4:
-                    car.reward += 2
-                
-                # print(inp)
-                if inp[0] > 0.4 and inp[1] > 0.4 and inp[2] > 0.4 and inp[3] > 0.4 and inp[4] > 0.4 and inp[5] > 0.2:
-                    car.reward += 5
-                    #print("Near center")
-                if inp[0] < 0.4 or inp[1] < 0.4 or inp[2] < 0.4 or inp[3] < 0.4 or inp[4] < 0.4:
-                    car.reward -= 0.5
-                    #print("Not near center")
-
-                reward = car.reward
-
-
-                #print(car.state[0], next_inp[0], reward)
-
-                # reward += dt*inp[-1]
-                # print(reward)
                 terminal = 0 if car.active else 1
                 # if terminal: reward = -20
                 if terminal:
-                    print(car.reward)
+                    # print(car.reward)
+                    self.reward_history.append(car.score)
                 self.memory.add(car.state, action, reward, next_inp, terminal)
                 
                 if len(self.memory) % 1000 == 0:

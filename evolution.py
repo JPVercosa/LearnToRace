@@ -1,8 +1,9 @@
 from neural_network import NeuralNetwork, NeuralNetworkDDPG, CQ, Mu
 from core import index_loop
-from os import listdir
+from os import listdir, path
 import json
 from objects import Result, ResultDDPG
+import matplotlib.pyplot as plt
 
 
 class Entity:
@@ -97,6 +98,45 @@ class Entity:
         with open(folder + "/" + save_name, "w") as json_file:
             json.dump(save_file, json_file)
         print("Saved ", save_name)
+
+    def save_history(self, save_name="", mode="", history=[], population=1, full_path="none"):
+        # if dir already contains that name
+        """
+        files = listdir(folder)
+        name_count = 0
+        while save_name + ".json" in files:
+            name_count += 1
+            save_name = "%s(%s)" % (self.name, name_count)"""
+        save_name = save_name.replace(" ", "_").replace(".png", "")
+        if not save_name.endswith(".png"):
+            save_name += ".png"
+
+        fig, ax = plt.subplots(1, figsize=(4, 3))	
+
+        pop_mean_history = [sum(history[i:i+population])/population for i in range(0, len(history), population)]
+        pop_max_history = [max(history[i:i+population]) for i in range(0, len(history), population)]
+        #pop_mean_history.pop(-1)
+        #pop_max_history.pop(-1)
+        #print(len(history), len(pop_mean_history), len(pop_max_history))
+        x_values = range(1, len(pop_mean_history) + 1)
+        # create image graph from history
+        ax.plot(x_values, pop_mean_history, label="Population Mean")
+        ax.plot(x_values, pop_max_history, label="Population Max")
+        ax.set_title(f"{mode.capitalize()} History")
+        if mode == "evolutionary": 
+            ax.set_xlabel("Generation") 
+        else: 
+            ax.set_xlabel("Episode")
+        ax.set_ylabel("Reward")
+        fig.tight_layout()
+        if path.exists(full_path):
+            fig.savefig(full_path)
+        else:
+            fig.savefig(f"saves/images/{mode}/{save_name}")
+        plt.close(fig)
+        # save it
+        print("Saved ", save_name)
+    
 
     def load_file(self, path):
         #try:
@@ -242,7 +282,7 @@ class EvolutionDDPG(Evolution):
             mu_list.append(base_MU)
         return cq_list, mu_list
 
-    def get_new_generation_from_results(self, results: [ResultDDPG], population: int, to_add_count=3):
+    def get_new_generation_from_results(self, results: [ResultDDPG], population: int, to_add_count=1):
         best_cqs = []
         best_mus = []
         

@@ -28,7 +28,7 @@ def ask_load_nn(initialdir="saves"):
     return filedialog.askopenfilename(
         title="Load .json save file",
         initialdir=initialdir,
-        filetypes=[("json save file", "*.json")]
+        filetypes=[("json file", "*.json"), ("Image files", "*.png *.jpg *.jpeg")]
     )
 
 def ask_mode(custom_title=None, custom_prompt=None):
