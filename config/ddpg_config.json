@@ -1,5 +1,5 @@
 {
-  "name": "DDPG02",
+  "name": "03-DDPG",
   "acceleration": 1,
   "friction": 0.95,
   "max_speed": 30,

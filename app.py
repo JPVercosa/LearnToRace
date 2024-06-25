@@ -10,10 +10,10 @@ import json
 import time
 
 from graphics import Graphics
-from core import Simulation, SimulationDDPG, index_loop
+from core import Simulation, SimulationDDPG, SimulationTD3, index_loop
 from neural_network import NeuralNetwork
 
-from evolution import Evolution, Entity, EntityDDPG, EvolutionDDPG
+from evolution import Evolution, Entity, EntityDDPG, EvolutionDDPG, EntityTD3, EvolutionTD3
 from core import Track
 
 from menu import SettingsMenu
@@ -89,6 +89,7 @@ class App:
         ### TRACK MANAGER ###
         self.tile_manager = TileManager()
         self.tile_manager.load_tiles(root_dir="tiles")
+        self.new_track_every_round = True
 
         ### LABELS ###
         self.graphics.hud.labels["name"].text = ""
@@ -348,7 +349,12 @@ class App:
             active = self.simulation.behave(dt)
             if not active:
                 self.timer = 0
-                self.new_generation()
+                if self.new_track_every_round:
+                    self.change_track(
+                            track=self.tile_manager.generate_track(shape=(5, 3))
+                        )
+                else:
+                    self.new_generation()
             self.simulation.update(dt)
 
             # CAMERA
@@ -370,7 +376,12 @@ class App:
         self.timer += 1
         if self.timer >= self.timer_limit:
             self.timer = 0
-            self.new_generation()
+            if self.new_track_every_round:
+                self.change_track(
+                        track=self.tile_manager.generate_track(shape=(5, 3))
+                    )
+            else:
+                self.new_generation()
         seconds = int(self.timer * self.settings["render_timestep"])
         self.graphics.hud.labels["time"].text = "Time: " + str(seconds) + " / " + str(self.settings["timeout_seconds"])
 
@@ -444,8 +455,8 @@ class AppDDPG(App):
         self.batch_size = self.settings["batch_size"]
 
         self.simulation = SimulationDDPG(track=None, 
-                                                 gamma=self.gamma,
-                                                 batch_size=self.batch_size)
+                                        gamma=self.gamma,
+                                        batch_size=self.batch_size)
         self.evolution = EvolutionDDPG()
 
     def new_generation(self):
@@ -528,4 +539,93 @@ class AppDDPG(App):
         pyglet.clock.schedule_interval(self.update, self.settings["render_timestep"])
         pyglet.app.run()
         
+class AppTD3(AppDDPG):
+    def __init__(self, settings):
+        super().__init__(settings)
+        self.simulation = SimulationTD3(track=None, 
+                                                 gamma=self.gamma,
+                                                 batch_size=self.batch_size)
+        self.evolution = EvolutionTD3()
+
+    def new_generation(self):
+        self.graphics.clear_batch()
+
+        for car in self.simulation.cars:
+            if car.active:
+                self.simulation.reward_history.append(car.score)
+
+        if self.entity.gen_count % self.save_every == 0:
+            name = self.entity.name
+            gen = self.entity.gen_count
+            best = max(self.simulation.reward_history)
+            pop = self.settings["population"]
+            secs = int(time.time() - self.start_time)
+            filename = f"{name}-{gen}gen-{best}best-{pop}pop-{secs}secs.png"
+            self.entity.save_history(save_name=filename, 
+                                             mode=self.mode, 
+                                             history=self.simulation.reward_history, 
+                                             population=self.settings["population"],
+                                             full_path=f"saves/images/{filename}")
+            
+        results = self.simulation.get_nns_results()
+
+        cq_list, cq2_list, mu_list = self.evolution.get_new_generation_from_results(
+            results,
+            self.settings["population"]
+        )
+
+        self.simulation.generate_cars_from_nns(
+            cq=cq_list,
+            cq2=cq2_list,
+            mu=mu_list,
+            parameters=self.entity.get_car_parameters(),
+            images=self.graphics.car_images,
+            batch=self.graphics.car_batch,
+            labels_batch=self.graphics.car_labels_batch
+        )
+        self.entity.set_nn_from_result(self.evolution.find_best_result(results))
+        self.entity.increment_gen_count()
+
+        self.update_labels(self.entity)
+        self.camera_selected_car = self.simulation.cars[0]
+        self.graphics.update_sprites(self.simulation.cars)        
+        
+        # start of simulation
+    def start_simulation(self, entity: EntityTD3, track: Track=None):
+
+        # entity
+        self.entity = entity
+        self.entity.increment_gen_count()
+        
+
+        # set track or generate random
+        self.simulation.track = track if track is not None else self.tile_manager.generate_track(shape=(5, 3))
+
+        # set labels
+        self.update_labels(self.entity)
+
+        cqs, cqs2, mus = self.entity.get_nn()
+
+        cqs_list, cqs2_list, mus_list = self.evolution.get_new_generation(
+            [cqs], [cqs2] ,[mus], self.settings["population"])
+
+
+
+        self.simulation.generate_cars_from_nns(
+            cq=cqs_list,
+            cq2=cqs2_list,
+            mu=mus_list,
+            parameters=self.entity.get_car_parameters(),
+            images=self.graphics.car_images,
+            batch=self.graphics.car_batch,
+            labels_batch=self.graphics.car_labels_batch
+        )
+
+        self.camera_selected_car = self.simulation.get_leader()
+        self.graphics.update_sprites(self.simulation.cars)
+
+        self.on_resize(self.window.width, self.window.height)
+
+        pyglet.clock.schedule_interval(self.update, self.settings["render_timestep"])
+        pyglet.app.run()
     

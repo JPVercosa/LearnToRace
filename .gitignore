@@ -1,3 +1,5 @@
 .idea
 __pycache__
 saves/reinforcement
+saves/evolutionary
+saves/images

@@ -7,7 +7,7 @@ from numpy import cos,sin,radians,sqrt,ones
 from neural_network import NeuralNetwork, NeuralNetworkDDPG, CQ, Mu
 from graphics import CarInfo, CarLabel
 
-from objects import Result, ResultDDPG
+from objects import Result, ResultDDPG, ResultTD3
 
 
 # finds intersection between two LINE SEGMENTS
@@ -48,7 +48,7 @@ def index_loop(ind, len):
     return ind % len if ind >= len else ind
 
 class ReplayMemory:
-    def __init__(self, state_dims, action_dims, size=1000000, alpha=0.6):
+    def __init__(self, state_dims, action_dims, size=3000000, alpha=0.6):
         self.alpha = alpha  # Prioritization exponent
         self.epsilon = 1e-6  # Small constant to ensure no zero priorities
 
@@ -446,7 +446,7 @@ class SimulationDDPG(Simulation):
 
                     self.update_counter += 1
                     if self.update_counter >= self.update_target:
-                        print("Updating target networks")
+                        # print("Updating target networks")
                         car.c_copy.copyfrom(car.critic)
                         car.a_copy.copyfrom(car.actor)
                         # Atualizar o segundo crítico
@@ -460,6 +460,154 @@ class SimulationDDPG(Simulation):
             return False
         else:
             return True
+        
+class SimulationTD3(SimulationDDPG):
+    def __init__(self, track=None,
+                    gamma=0.99, 
+                    batch_size=256):
+        super().__init__(track)
+
+    def generate_cars_from_nns(self, cq, cq2, mu, parameters, images, batch, labels_batch=None):
+        self.cars = []
+        assert len(cq) == len(mu) == len(cq2), "cq, cq2 and mu must have the same length"
+        for i in range(len(cq)):
+            name, image = images[index_loop(i, len(images))]
+            sprite = pyglet.sprite.Sprite(image, batch=batch)
+            label = CarLabel(name="TST", batch=labels_batch)
+            pos = (*self.track.cps_arr[self.track.spawn_index], self.track.spawn_angle)
+            
+            # get mutated version of one of best NNs
+            self.cars.append(CarTD3(
+                cq=cq[i],
+                cq2=cq2[i],
+                mu=mu[i],
+                pos=pos,
+                parameters=parameters,
+                sprite=sprite,
+                label=label
+            ))
+
+    def get_nns_results(self):
+        nns_score = []
+        for car in self.cars:
+            car.dist_to_next_cp = dist_between(
+            (car.xpos, car.ypos),
+            self.track.cps_arr[index_loop(
+                    car.score + self.track.spawn_index + 1,
+                    len(self.track.cps_arr)
+                )]
+            )
+            nns_score.append(ResultTD3(
+                cq=car.cq,
+                cq2=car.cq2,
+                mu=car.mu,
+                score=car.score,
+                reward=car.reward,
+                dist_to_next_cp= car.dist_to_next_cp
+            ))
+        return nns_score
+
+    def behave(self, dt):
+        inactive = True
+        for car in self.cars:
+            if car.active:
+                
+                inactive = False
+
+                theta = 0.15
+
+                # Get the current state input
+                # Get the action output from the actor network
+                inp = self.get_car_input(car)
+                if car.state is None:
+                    next_inp = inp
+                    car.state = inp     
+                    action = car.actor(car.state)
+                    #Add Ornstein-Uhlenbeck noise to the action
+                    car.noise = (1-theta)*car.noise + np.random.normal(loc=0, scale=self.noise_stddev)
+                    action = action + car.noise
+                           
+
+                else:
+                    action = car.actor(car.state)
+                    #Add Ornstein-Uhlenbeck noise to the action
+                    car.noise = (1-theta)*car.noise + np.random.normal(loc=0, scale=self.noise_stddev)
+                    action = action + car.noise
+                    next_inp = inp
+
+                self.update_car_checkpoint(car)
+                
+                # Move the car
+                car.turn(action[0])  # number between -1 and 1
+                car.move((action[1] + 1) / 2)  # number between 0 and 1
+                
+                reward = self.calculate_reward(car, inp)              
+
+                terminal = 0 if car.active else 1
+                # if terminal: reward = -20
+                if terminal:
+                    # print(car.reward)
+                    self.reward_history.append(car.score)
+                self.memory.add(car.state, action, reward, next_inp, terminal)
+                
+                if len(self.memory) % 1000 == 0:
+                    print(len(self.memory))
+
+                car.state = inp
+                
+                # Update the networks if there are enough experiences
+                if len(self.memory) >= self.batch_size*2: #and len(self.memory) % 50 == 0:
+                    minibatch = self.memory.per_sample(self.batch_size)
+                    states, actions, rewards, next_states, terminals, indices, weights = minibatch
+
+                    next_actions = car.a_copy(next_states)
+                    # Adicionar ruido Gaussiano ao next_actions (menor que o anterior)
+                    noise = np.random.normal(0, 0.2, size=next_actions.shape)
+                    next_actions = next_actions + noise
+                    next_actions[0] = np.clip(next_actions[0], -1, 1)
+                    next_actions[1] = np.clip(next_actions[1], 0, 1)
+
+                    next_q_values_1 = car.c1_copy(next_states, next_actions)
+                    next_q_values_2 = car.c2_copy(next_states, next_actions)
+                    # Vão existir dois criticos semelhantes
+                    # Pegar a o mínimo entre eles
+                    next_q_values = np.minimum(next_q_values_1, next_q_values_2)
+                    targets = rewards + self.gamma * next_q_values * (1 - terminals)
+
+                    # Compute current Q-values
+                    current_q_values_1 = car.critic1(states, actions)
+                    current_q_values_2 = car.critic2(states, actions)
+
+                    # Compute TD errors
+                    td_errors_1 = np.abs(targets - current_q_values_1).flatten()
+                    td_errors_2 = np.abs(targets - current_q_values_2).flatten()
+
+                    # Atualizar o segundo crítico
+                    car.critic1.update(states, actions, targets)
+                    car.critic2.update(states, actions, targets)
+                    car.actor.update(states, car.critic)
+                
+                    td_errors = td_errors_1 + td_errors_2
+                    self.memory.update_priorities(indices, td_errors)
+
+                    self.update_counter += 1
+                    if self.update_counter >= self.update_target:
+                        # print("Updating target networks")
+                        car.c1_copy.copyfrom(car.critic)
+                        car.c2_copy.copyfrom(car.critic)
+                        car.a_copy.copyfrom(car.actor)
+                        # Atualizar o segundo crítico
+                        self.update_counter = 0
+                
+
+        # if no car is active :(
+        # if episode ended
+
+        if inactive:
+            return False
+        else:
+            return True
+
 
 
 
@@ -626,4 +774,15 @@ class CarDDPG(Car):
 
         self.noise = 0
         self.state = None
+
+class CarTD3(CarDDPG):
+    def __init__(self, cq: CQ, mu: Mu, pos: tuple, sprite, parameters: dict, label: CarLabel = None, cq2: CQ = None):
+        super().__init__(cq, mu, pos, sprite, parameters, label)
+
+        self.cq2 = cq2
+
+        self.critic1 = cq
+        self.critic2 = cq2
+        self.c1_copy = cq
+        self.c2_copy = cq2
         
