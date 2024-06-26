@@ -26,76 +26,76 @@ Or use a virtual environment.
 **evolutionary_settings.json**
 
 ```
-		{
-			"width": 1280,
-			"height": 720,
-			"friction": 0.1,
-			"render_timestep": 0.025, // time between frames in seconds - 0.025s = 40 FPS
-			"timeout_seconds": 30, // maximum time for each gen
-			"population": 40, // number of cars
-			"mutation_rate": 0.6 // mutation rate after gen
-    }
+{
+	"width": 1280,
+	"height": 720,
+	"friction": 0.1,
+	"render_timestep": 0.025, // time between frames in seconds - 0.025s = 40 FPS
+	"timeout_seconds": 30, // maximum time for each gen
+	"population": 40, // number of cars
+	"mutation_rate": 0.6 // mutation rate after gen
+}
 ```
 
 **reinforcement_settings.json**
 
 ```
-		{
-			"width": 1280,
-			"height": 720,
-			"friction": 0.1,
-			"render_timestep": 0.025,
-			"timeout_seconds": 30,
-			"population": 1,
-			"mutation_rate": 0.0,
-			"gamma": 0.99,
-			"batch_size": 256
-		}
+{
+	"width": 1280,
+	"height": 720,
+	"friction": 0.1,
+	"render_timestep": 0.025,
+	"timeout_seconds": 30,
+	"population": 1,
+	"mutation_rate": 0.0,
+	"gamma": 0.99,
+	"batch_size": 256
+}
 ```
 
 **default_nn_config.json** - Default car config for new saves.
 
 ```
-    {
-			"name": "test",
-			"acceleration": 1,
-			"friction": 0.95,
-			"max_speed": 30,
-			"rotation_speed": 4,
-			"shape": [6, 4, 3, 2], // neural network shape - do not change first and last layer
-			"max_score": 0,
-			"gen_count": 0
-    }
+{
+	"name": "test",
+	"acceleration": 1,
+	"friction": 0.95,
+	"max_speed": 30,
+	"rotation_speed": 4,
+	"shape": [6, 4, 3, 2], // neural network shape - do not change first and last layer
+	"max_score": 0,
+	"gen_count": 0
+}
 ```
 
 **ddpg_config.json**
 
 ```
-			{
-    		"name": "DDPG",
-    		"acceleration": 1,
-    		"friction": 0.95,
-    		"max_speed": 30,
-    		"rotation_speed": 4,
-    		"shape": [6, 32, 32, 2],
-    		"max_score": 0,
-    		"gen_count": 0
-    	}
+{
+	"name": "DDPG",
+	"acceleration": 1,
+	"friction": 0.95,
+	"max_speed": 30,
+	"rotation_speed": 4,
+	"shape": [6, 32, 32, 2],
+	"max_score": 0,
+	"gen_count": 0
+}
 ```
 
 **td3_config.json**
 
 ```
-    	{
-    		"name": "TD3",
-    		"acceleration": 1,
-    		"friction": 0.95,
-    		"max_speed": 30,
-    		"rotation_speed": 4,
-    		"shape": [6, 32, 32, 2],
-    		"max_score": 0,
-    		"gen_count": 0
-    	}
+{
+	"name": "TD3",
+	"acceleration": 1,
+	"friction": 0.95,
+	"max_speed": 30,
+	"rotation_speed": 4,
+	"shape": [6, 32, 32, 2],
+	"max_score": 0,
+	"gen_count": 0
+}
 ```
 
 ## 🏎️ Environment and Trach Generation
